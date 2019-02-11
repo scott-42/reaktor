@@ -1,113 +1,82 @@
 #!/usr/bin/perl
+#
 # Copyright 2019 R. Scott Gustafson
+#
+# https://tracking-game.reaktor.com/parts/per/billion/play
+# While the levels of any given contaminant vary wildly over time,
+# the total level of all contaminants combined should remain within
+# a standard deviation at all times.
 
-#use JSON::Parse;
 use JSON qw( decode_json );
-use Data::Dumper;
 use Statistics::Basic  qw(:all nofill);
 use List::Util qw(max sum);
 
+open (LOG, "< mission2.txt")
+    or die "Couldn't open mission2.txt for reading: $!\n";
+
 $data = "";
 
-while (<>) {
+# the input file is in binary, so convert it back to text
+# one byte at a time
+while (<LOG>) {
     chomp;
     @numbers = split ' ';
     foreach (@numbers) {
         $data .= chr(oct("0b$_"));
     }
-    
 }
-# print Dumper $data;
+close (LOG);
 
+# turn out the text is JSON so decode it
 @decoded_json = decode_json( $data );
 
-#print Dumper $decoded_json;
-
-foreach $item ($decoded_json[0]) {
-    # @stddevs = ();
-    # %stddevmap;
-    foreach $subitem (@$item) {
-        # print $subitem . "\n";
-        $date = $subitem->{"date"};
-
-        # if ($date == '25-Dec-2018') {
-        #     print Dumper $subitem;
-        # }
-
-        # print $date . "\n";
-        # print $subitem->{"readings"} . "\n";
-        $readings = $subitem->{"readings"};
-        # print @readings . "\n";
-        # print Dumper @readings;
-        @sums = ();
-        @ids = ();
-        @times = ();
-        foreach $reading (@$readings) {
-
-            %contaminants = $reading->{"contaminants"};
-            $id = $reading->{"id"};
-            $time = $reading->{"time"};
-            $sum = 0;
-            # @vals = ();
-            while ( ($k,$v) = each $reading->{"contaminants"} ) {
-                # push @vals, $v;
-                $sum += $v;
-            }
-            # print "$sum @vals\n";
-            push @sums, $sum;
-            push @ids, $id;
-            push @times, $time;
-            # print $reading->{"id"} . " $sum\n";
-            # print Dumper $reading;
-        }
-        # print "@sums\n";
-        $stddevobj = stddev(@sums);
-        $stddev = $stddevobj->query;
-        push @stddevs, $stddev;
-        $stddevmap{$stddev} = $date;
-        # print "$stddev\n";
-        push @{$sumsmap{$date}},  @sums;
-        push @{$idsmap{$date}}, @ids;
-        push @{$timesmap{$date}}, @times;
-        # print Dumper $sumsmap{$date};
+# this is not a generalized json parsing but more specific
+# to this problem.
+foreach $item (@{$decoded_json[0]}) { # foreach day
+    @sums = ();
+    # Added date, ids, and times since the anomaly didn't seem to be the answer
+    # keeping track of everything and then just printing them out at the end.
+    $date = $item->{"date"};
+    @ids = ();
+    @times = ();
+    
+    # get the data for each hour and sum it
+    foreach $reading (@{$item->{"readings"}}) {
+        push @sums, sum values $reading->{"contaminants"};
+        push @ids, $reading->{"id"};
+        push @times, $reading->{"time"};
     }
+    $stddev = stddev(@sums)->query; # calculate the standard deviation for the day
+    push @stddevs, $stddev;
+    $stddevmap{$stddev} = $date;
+    push @{$sumsmap{$date}},  @sums;
+    push @{$idsmap{$date}}, @ids;
+    push @{$timesmap{$date}}, @times;
 }
 
-# @sorted = reverse(sort @stddevs);
-# # print Dumper @sorted[0];
-# $date = %stddevmap{@sorted[0]};
-# print "Date: " . $date . "\n";
-$maxstddev = max @stddevs;
-# print Dumper @sorted[0];
-$date = %stddevmap{$maxstddev};
+$maxstddev = max @stddevs; # find the largest standard deviation of all the days
+$date = %stddevmap{$maxstddev}; # lookup what day that happened
 print "Date: " . $date . "\n";
-# print Dumper %idsmap{%stddevmap{$maxstddev}};
-# @sortedsums = reverse(sort @{%sumsmap{%stddevmap{@sorted[0]}}});
-# $anomaly = @sortedsums[0];
-# print "Anomaly: " . $anomaly . "\n";
-$anomaly = max @{%sumsmap{$date}};
+$anomaly = max @{%sumsmap{$date}}; # find the largest anomaly for that day
 print "Anomaly: " . $anomaly . "\n";
-$idx = 0;
+# since the answer didn't seem to be the largest anomaly like the sample data shows,
+# then I ended up keeping more data and trying that, so tried the ID for the given hour
+# it happened as well
 for ($x = 0; $x < @{%sumsmap{$date}}; $x++) {
     if (@{%sumsmap{$date}}[$x] == $anomaly) {
-        $idx = $x;
         last;
     }
 }
-# print Dumper $idx;
-print "Time: " . @{%timesmap{$date}}[$idx] . "\n";
-print "ID: " . @{%idsmap{$date}}[$idx] . "\n";
-# print Dumper %stddevmap;
-# print Dumper %sumsmap{%stddevmap{$date}};
-
-#
-# 1249458
-# 'id' => '4B554E47524144',
-# '25-Dec-2018' 'time' => 5
-# '48722.6571584857';
+print "Time: " . @{%timesmap{$date}}[$x] . "\n";
+print "ID: " . @{%idsmap{$date}}[$x] . "\n";
 
 # Date: 25-Dec-2018
 # Anomaly: 1249458
 # Time: 5
 # ID: 4B554E47524144
 
+# if the answer was just the anomaly, this would be a lot shorter.
+# 
+# Not sure what the answer they are expecting for this puzzle as I tried 
+# several different ones. Since the original puzzle said that each contaminat
+# could varry widely, then the stddev of those is meaningless.
