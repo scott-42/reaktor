@@ -34,49 +34,33 @@ close (LOG);
 # to this problem.
 foreach $item (@{$decoded_json[0]}) { # foreach day
     @sums = ();
-    # Added date, ids, and times since the anomaly didn't seem to be the answer
-    # keeping track of everything and then just printing them out at the end.
     $date = $item->{"date"};
     @ids = ();
-    @times = ();
     
     # get the data for each hour and sum it
     foreach $reading (@{$item->{"readings"}}) {
         push @sums, sum values $reading->{"contaminants"};
         push @ids, $reading->{"id"};
-        push @times, $reading->{"time"};
     }
     $stddev = stddev(@sums)->query; # calculate the standard deviation for the day
     push @stddevs, $stddev;
     $stddevmap{$stddev} = $date;
     push @{$sumsmap{$date}},  @sums;
     push @{$idsmap{$date}}, @ids;
-    push @{$timesmap{$date}}, @times;
 }
 
 $maxstddev = max @stddevs; # find the largest standard deviation of all the days
 $date = %stddevmap{$maxstddev}; # lookup what day that happened
-print "Date: " . $date . "\n";
 $anomaly = max @{%sumsmap{$date}}; # find the largest anomaly for that day
-print "Anomaly: " . $anomaly . "\n";
-# since the answer didn't seem to be the largest anomaly like the sample data shows,
-# then I ended up keeping more data and trying that, so tried the ID for the given hour
-# it happened as well
+
 for ($x = 0; $x < @{%sumsmap{$date}}; $x++) {
     if (@{%sumsmap{$date}}[$x] == $anomaly) {
         last;
     }
 }
-print "Time: " . @{%timesmap{$date}}[$x] . "\n";
-print "ID: " . @{%idsmap{$date}}[$x] . "\n";
 
-# Date: 25-Dec-2018
-# Anomaly: 1249458
-# Time: 5
-# ID: 4B554E47524144
+# dumb answer incoming. The ID is apparently ASCII characters represented as hex
+print join '', map chr, map hex, unpack "(A2)*", @{%idsmap{$date}}[$x];
+print "\n";
 
-# if the answer was just the anomaly, this would be a lot shorter.
-# 
-# Not sure what the answer they are expecting for this puzzle as I tried 
-# several different ones. Since the original puzzle said that each contaminat
-# could varry widely, then the stddev of those is meaningless.
+# KUNGRAD
